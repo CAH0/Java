@@ -4,10 +4,38 @@
  */
 package pkg23vvv1;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+
+
+import java.io.FileNotFoundException;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import javax.swing.SwingUtilities;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.ArrayList;
+import java.util.List;
+
+
 import java.util.LinkedList;
 import java.util.Set;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.JOptionPane;
+import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileNameExtensionFilter;
+
+ 
 
 /**
  *
@@ -17,8 +45,8 @@ public class JForm extends javax.swing.JFrame {
     
     private static LinkedList<RecIntegral> tableContent = new LinkedList<>();
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(JForm.class.getName());
-
-    /**
+    
+    private ExecutorService executor = Executors.newFixedThreadPool(10);    /**
      * Creates new form JForm
      */
     public JForm() {
@@ -50,6 +78,12 @@ public class JForm extends javax.swing.JFrame {
         jButtonClearTable = new javax.swing.JButton();
         jButtonAddCollection = new javax.swing.JButton();
         jLabel5 = new javax.swing.JLabel();
+        jMenuBar1 = new javax.swing.JMenuBar();
+        jMenu1 = new javax.swing.JMenu();
+        jMenuItem1SaveTxt = new javax.swing.JMenuItem();
+        jMenuItem2LoadTxt = new javax.swing.JMenuItem();
+        jMenuItem3SaveBin = new javax.swing.JMenuItem();
+        jMenuItem4LoadBin = new javax.swing.JMenuItem();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -215,8 +249,46 @@ public class JForm extends javax.swing.JFrame {
                             .addComponent(jTextFieldStepBound, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jScrollPane4, javax.swing.GroupLayout.PREFERRED_SIZE, 94, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap())
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
+
+        jMenu1.setText("Меню");
+
+        jMenuItem1SaveTxt.setText("Сохранить как txt");
+        jMenuItem1SaveTxt.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jMenuItem1SaveTxtActionPerformed(evt);
+            }
+        });
+        jMenu1.add(jMenuItem1SaveTxt);
+
+        jMenuItem2LoadTxt.setText("Загрузить как txt");
+        jMenuItem2LoadTxt.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jMenuItem2LoadTxtActionPerformed(evt);
+            }
+        });
+        jMenu1.add(jMenuItem2LoadTxt);
+
+        jMenuItem3SaveBin.setText("Сохранить как bin");
+        jMenuItem3SaveBin.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jMenuItem3SaveBinActionPerformed(evt);
+            }
+        });
+        jMenu1.add(jMenuItem3SaveBin);
+
+        jMenuItem4LoadBin.setText("Загрузить как bin");
+        jMenuItem4LoadBin.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jMenuItem4LoadBinActionPerformed(evt);
+            }
+        });
+        jMenu1.add(jMenuItem4LoadBin);
+
+        jMenuBar1.add(jMenu1);
+
+        setJMenuBar(jMenuBar1);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -238,37 +310,36 @@ public class JForm extends javax.swing.JFrame {
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
+    private void shutdownExecutor() {
+    executor.shutdown();
+}
+    
     private void jButtonSolveActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonSolveActionPerformed
     int selectedRow = jTable1.getSelectedRow();
-    int row = jTable1.getSelectedRow();
-    double result = 0.0;
+    
     if (selectedRow != -1) {
-        try{
+        try {
+            // Получаем параметры из таблицы
             double a = Double.parseDouble(jTable1.getValueAt(selectedRow, 0).toString());
             double b = Double.parseDouble(jTable1.getValueAt(selectedRow, 1).toString());
             double step = Double.parseDouble(jTable1.getValueAt(selectedRow, 2).toString());
 
             RecIntegral ri = new RecIntegral(a, b, step);
-            result = ri.calculate(ri.GetLowLim(), ri.GetUpperLim(), ri.GetStep());
-
-            ri.setResult(result);
+            
+            // Создаем и запускаем задачу в пуле потоков
+            CalculationTask task = new CalculationTask(ri, (DefaultTableModel)jTable1.getModel(), selectedRow);
+            executor.submit(task);
+            
             tableContent.add(ri);
-
-            jTable1.setValueAt(ri.GetResult(), selectedRow, 3);
-            tableContent.set(selectedRow, ri);
-        }
-        catch (NumberFormatException ex){
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                jTable1.setValueAt("Вычисляется...", selectedRow, 3);
+            });
+        } catch (NumberFormatException ex) {
             JOptionPane.showMessageDialog(this,
-            "Введите корректные числа (разделитель дробной части - точка). ",
-            "Ошибка ввода", JOptionPane.ERROR_MESSAGE);
-        }
-        catch (IllegalArgumentException e){
-            JOptionPane.showMessageDialog(this,
-            e.getMessage(),
-            "Ошибка", JOptionPane.ERROR_MESSAGE);
-        }
-        catch (InvalidRangeException e){
-            JOptionPane.showMessageDialog(this, e.getMessage(), "Ошибка диапазона", JOptionPane.ERROR_MESSAGE);
+                "Введите корректные числа (разделитель дробной части - точка). ",
+                "Ошибка ввода", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, e.getMessage(), "Ошибка", JOptionPane.ERROR_MESSAGE);
         }
     }
     }//GEN-LAST:event_jButtonSolveActionPerformed
@@ -341,6 +412,262 @@ public class JForm extends javax.swing.JFrame {
         };
     }//GEN-LAST:event_jButtonAddCollectionActionPerformed
 
+    private void jMenuItem1SaveTxtActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem1SaveTxtActionPerformed
+        JFileChooser f = new JFileChooser();
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("Text file (*.txt)", "txt");
+        f.setFileFilter(filter);
+        f.showSaveDialog(null);
+        
+        File file = f.getSelectedFile();
+        
+        if (!file.getPath().endsWith(".txt")){
+            file = new File(file.getPath() + ".txt");
+        }
+        
+        try(FileWriter writer = new FileWriter(file, false)){
+            for (RecIntegral o : tableContent){
+                writer.write(o.GetLowLim() + " " +
+                        o.GetUpperLim() + " " +
+                        o.GetStep() + " " + 
+                        o.GetResult() + "\n");
+            }
+            writer.flush();
+            writer.close();
+        }
+        catch(IOException ex){
+            JOptionPane.showMessageDialog(null, ex);
+        }
+    }//GEN-LAST:event_jMenuItem1SaveTxtActionPerformed
+
+    private void jMenuItem2LoadTxtActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem2LoadTxtActionPerformed
+        JFileChooser f = new JFileChooser();
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("Text file (*.txt)", "txt");
+    f.setFileFilter(filter);
+    
+    int result = f.showOpenDialog(null);
+    
+    if (result != JFileChooser.APPROVE_OPTION) {
+        return;
+    }
+    
+    File file = f.getSelectedFile();
+    
+    if (file == null || !file.exists()) {
+        JOptionPane.showMessageDialog(null, "File not found");
+        return;
+    }
+    
+    try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+        tableContent.clear();
+        String temp = "";
+        
+        while ((temp = reader.readLine()) != null) {
+            temp = temp.trim();
+            if (temp.isEmpty()) continue;
+            
+            String[] parts = temp.split(" ");
+            
+            if (parts.length != 4) {
+                JOptionPane.showMessageDialog(null, "Invalid format: expected 4 values, found " + parts.length);
+                continue;
+            }
+            
+            try {
+                RecIntegral rec = new RecIntegral(
+                    Double.parseDouble(parts[0]),
+                    Double.parseDouble(parts[1]),
+                    Double.parseDouble(parts[2]),
+                    Double.parseDouble(parts[3])
+                );
+                tableContent.add(rec);
+            } catch (InvalidRangeException e) {
+                JOptionPane.showMessageDialog(null, "Invalid data: " + e.getMessage());
+                // Skip this record or handle as needed
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(null, "Invalid number format: " + temp);
+            }
+        }
+        
+        // Refresh the table display
+        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
+        model.setRowCount(0);
+        
+        for (RecIntegral obj : tableContent) {
+            model.addRow(new Object[]{
+                obj.GetLowLim(),     // Note: capital 'G'
+                obj.GetUpperLim(),   // Note: capital 'G'
+                obj.GetStep(),       // Note: capital 'G'
+                obj.GetResult()      // Note: capital 'G'
+            });
+        }
+        
+        JOptionPane.showMessageDialog(null, "Successfully loaded " + tableContent.size() + " records");
+        
+    } catch (FileNotFoundException ex) {
+        JOptionPane.showMessageDialog(null, "File not found: " + ex.getMessage());
+    } catch (IOException ex) {
+        JOptionPane.showMessageDialog(null, "Error reading file: " + ex.getMessage());
+    }
+
+
+    }//GEN-LAST:event_jMenuItem2LoadTxtActionPerformed
+
+    private void jMenuItem3SaveBinActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem3SaveBinActionPerformed
+    JFileChooser f = new JFileChooser();
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("Binary file (*.bin)", "bin");
+    f.setFileFilter(filter);
+    f.showSaveDialog(null);
+    
+    File file = f.getSelectedFile();
+    
+    if(!file.getPath().endsWith(".bin")){
+        file = new File(file.getPath() + ".bin");
+    }
+    
+    try(ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(file))){
+        out.writeObject(tableContent);
+        out.flush();
+        out.close();
+    } catch (IOException ex) {
+        JOptionPane.showMessageDialog(null, "Error reading file: " + ex.getMessage());
+    }
+    
+    }//GEN-LAST:event_jMenuItem3SaveBinActionPerformed
+
+    private void jMenuItem4LoadBinActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem4LoadBinActionPerformed
+        JFileChooser f = new JFileChooser();
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("Binary file (*.bin)", "bin");
+    f.setFileFilter(filter);
+    
+    int result = f.showOpenDialog(null);
+    if (result != JFileChooser.APPROVE_OPTION) {
+        return; // User cancelled
+    }
+    
+    File file = f.getSelectedFile();
+    
+    try (ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(file)))) {
+        tableContent = (LinkedList<RecIntegral>) in.readObject();
+        
+        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
+        model.setRowCount(0);
+        
+        for (RecIntegral obj : tableContent) {
+            model.addRow(new Object[]{
+                obj.GetLowLim(),
+                obj.GetUpperLim(),
+                obj.GetStep(),
+                obj.GetResult()
+            });
+        }
+    } catch (IOException ex) {
+        JOptionPane.showMessageDialog(null, "Error reading file: " + ex.getMessage());
+    } catch (ClassNotFoundException ex) {
+        JOptionPane.showMessageDialog(null, "Error: Class not found - " + ex.getMessage());
+    }
+    
+    }//GEN-LAST:event_jMenuItem4LoadBinActionPerformed
+
+   
+class PartialIntegralTask implements Callable<Double> {
+    private double a;      // нижняя граница части
+    private double b;      // верхняя граница части
+    private double step;   // шаг
+    
+    public PartialIntegralTask(double a, double b, double step) {
+        this.a = a;
+        this.b = b;
+        this.step = step;
+    }
+    
+    @Override
+    public Double call() throws Exception {
+        String threadName = Thread.currentThread().getName();
+        double sum = 0;
+        
+        for (double x = a; x < b; x += step) {
+            double h = step;
+            if (x + step > b) {
+                h = b - x;
+            }
+            double fx = Math.exp(x) / x;
+            sum += fx * h;
+        }
+        
+        System.out.println("Поток " + threadName + " вычислил часть интеграла от " + a + " до " + b + " = " + sum);
+        return sum;
+    }
+}
+    
+private double calculateParallel(double low, double up, double step) throws Exception {
+    double intervalLength = up - low;
+    double partLength = intervalLength / 10;
+    
+    List<Callable<Double>> tasks = new ArrayList<>();
+    
+    for (int i = 0; i < 10; i++) {
+        double partA = low + i * partLength;
+        double partB = (i == 9) ? up : low + (i + 1) * partLength;
+        
+        PartialIntegralTask task = new PartialIntegralTask(partA, partB, step);
+        tasks.add(task);
+    }
+    
+    List<Future<Double>> futures = executor.invokeAll(tasks);
+    
+    double totalSum = 0;
+    for (Future<Double> future : futures) {
+        totalSum += future.get();
+    }
+    
+    return totalSum;
+}
+
+
+class CalculationTask implements Runnable {
+    private RecIntegral recIntegral;
+    private DefaultTableModel tableModel;
+    private int selectedRow;
+
+    public CalculationTask(RecIntegral recIntegral, DefaultTableModel tableModel, int selectedRow) {
+        this.recIntegral = recIntegral;
+        this.tableModel = tableModel;
+        this.selectedRow = selectedRow;
+    }
+    
+    @Override
+    public void run() {
+        String threadName = Thread.currentThread().getName();
+        System.out.println("Главный поток " + threadName + " начинает вычисление интеграла для строки " + selectedRow);
+        
+        try {
+            double result = calculateParallel(
+                recIntegral.GetLowLim(), 
+                recIntegral.GetUpperLim(), 
+                recIntegral.GetStep()
+            );
+            
+            recIntegral.setResult(result);
+            
+            SwingUtilities.invokeLater(() -> {
+                tableModel.setValueAt(String.format("%.10e", recIntegral.GetResult()), selectedRow, 3);            });
+        } catch (Exception e) {
+            System.err.println("Ошибка: " + e.getMessage());
+            SwingUtilities.invokeLater(() -> {
+                tableModel.setValueAt("Ошибка: " + e.getMessage(), selectedRow, 3);
+                JOptionPane.showMessageDialog(null, "Ошибка вычисления: " + e.getMessage());
+            });
+        }
+    }
+}
+
+@Override
+public void dispose() {
+    executor.shutdown();
+    super.dispose();
+}
+
+
     /**
      * @param args the command line arguments
      */
@@ -377,6 +704,12 @@ public class JForm extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
+    private javax.swing.JMenu jMenu1;
+    private javax.swing.JMenuBar jMenuBar1;
+    private javax.swing.JMenuItem jMenuItem1SaveTxt;
+    private javax.swing.JMenuItem jMenuItem2LoadTxt;
+    private javax.swing.JMenuItem jMenuItem3SaveBin;
+    private javax.swing.JMenuItem jMenuItem4LoadBin;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JScrollPane jScrollPane4;
     private javax.swing.JTable jTable1;
