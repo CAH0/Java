@@ -4,12 +4,15 @@
  * and open the template in the editor.
  */
 package pkg23vvv1;
+import java.io.Serializable;
 
 /**
  *
  * @author aleksandr
  */
-public class RecIntegral {
+public class RecIntegral implements Serializable{
+    
+    
     
     private static final double MIN_VALUE = 0.0000001;
     private static final double MAX_VALUE = 10000000;
